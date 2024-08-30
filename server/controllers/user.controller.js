@@ -2,6 +2,8 @@ import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/APIError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/APIResponse.js";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
     const user = await User.findById(userId);
@@ -185,4 +187,33 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       )
     );
 });
-export { registerUser, loginUser, logoutUser };
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const { email, oldPassword, newPassword } = req.body;
+  if (oldPassword === newPassword) {
+    throw new ApiError(400, "Old and new password cannot be the same");
+  }
+  if (!email) {
+    throw new ApiError(400, "Email is required");
+  }
+
+  const user = await User.findOne({
+    email,
+  });
+  const isPasswordValid = await user.isPasswordCorrect(oldPassword);
+
+  if (!isPasswordValid) {
+    throw new ApiError(400, "Email and password combination is wrong");
+  }
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await User.updateOne({ email }, { password: hashedPassword });
+
+  return res.status(200).json(new ApiResponse(200, {}, "Password Updated"));
+});
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  resetPassword,
+  refreshAccessToken,
+};
